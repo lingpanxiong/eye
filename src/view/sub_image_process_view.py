@@ -682,7 +682,7 @@ class GraphicsView(QGraphicsView):
             # 按住 Alt 键，只缩放当前视图
             self.scale(zoom_factor, zoom_factor)
             self.zoom_factor *= zoom_factor
-            self.sync_zoom = 0
+            #self.sync_zoom = 0
             self.zoomChanged.emit(self.zoom_factor)
             # 确保鼠标位置保持不变
             new_pos = self.mapToScene(event.pos())

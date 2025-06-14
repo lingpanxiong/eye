@@ -13,7 +13,7 @@ from .custom_qCombox_spinner import CustomComboBox
 from .custom_qTableWidget_drag import DragTableWidget
 from src.utils.decorator import CC_TimeDec
 
-
+'''
 class Ui_MainWindow(object):
     """主窗口UI类"""
     @CC_TimeDec(tips="设置主窗口界面UI")
@@ -374,6 +374,6 @@ class Ui_MainWindow(object):
         self.RT_QPushButton3.setText(_translate("MainWindow", "清除"))
         self.RT_QPushButton5.setText(_translate("MainWindow", "对比"))
         # self.Right_Bottom_QGroupBox.setTitle(_translate("MainWindow", "显示界面")) # 移除组显示文字
-
+'''
 
     

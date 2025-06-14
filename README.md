@@ -4,11 +4,11 @@
 
 <div align="center">
 
-# 📷 hiviewer
+# 📷 eye
 
 <img src="resource/icons/viewer_3.ico" alt="XianyuBot Logo" width="180">
 
-**hiviewer**是一款多功能**图片&视频**比较工具，采用 **Python + PyQt5** 实现，旨在为用户提供更便捷的图片&视频对比方案。
+**eyer**是一款基于hiview<https://github.com/diamond-cz/hiviewer>进行客制化开发的多功能**图片&视频**比较工具，采用 **Python + PyQt5** 实现，旨在为用户提供更便捷的图片&视频对比方案。
 
 <p align="center">
   <a href="https://www.python.org/">

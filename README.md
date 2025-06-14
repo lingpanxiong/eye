@@ -87,7 +87,7 @@ python generate_exe.py
 
 #### Windows 用户
 
-1. 下载 "[latest.zip](https://github.com/diamond-cz/Hiviewer_releases/releases/)" 压缩包
+1. 下载 "[latest.zip](https://github.com/lingpanxiong/eye/releases)" 压缩包
 2. 解压后，双击程序"hiviewer.exe"运行
 
 #### macOS 用户
@@ -96,8 +96,7 @@ python generate_exe.py
 
 ### 效果展示
 
-> 新的版本会有新的变化，此处仅供参考，详细地使用说明请点一下 [这里](https://github.com/diamond-cz/hiviewer_releases) ，不麻烦`-_-)o`
-
+> 新的版本会有新的变化，此处仅供参考，详细地使用说明请点一下 [这里](https://github.com/lingpanxiong/eye/releases) 
 **主界面展示**
 
 ![Alt text](resource/images/Image_mainwindow.png)

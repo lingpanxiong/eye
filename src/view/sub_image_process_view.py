@@ -1,37 +1,14 @@
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsView, QGraphicsScene, QDoubleSpinBox, QPushButton, QFileDialog
-from PyQt5.QtGui import QPixmap
-#from src.utils.ImageTransform import ImageTransform  # 假设 ImageTransform 模块存在
-
-"""导入python内置模块"""
-import os
-import sys
-"""导入python三方模块"""
+from PyQt5.QtCore import Qt, pyqtSignal, QPoint
+from PyQt5.QtGui import QPixmap, QMouseEvent, QColor, QTransform, QImage
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QGraphicsView, QGraphicsScene, QVBoxLayout,
+    QHBoxLayout, QPushButton, QLabel, QDoubleSpinBox, QFileDialog
+)
 import cv2
 import piexif
 import numpy as np
-from PyQt5 import QtWidgets
 from PIL import Image, ImageEnhance
-from PyQt5.QtGui import QPixmap, QMouseEvent, QColor, QTransform , QImage
-from PyQt5.QtCore import Qt, pyqtSignal, QPoint
-from PyQt5.QtWidgets import (
-    QApplication, QWidget, QGraphicsView, QGraphicsScene, QVBoxLayout,
-    QHBoxLayout, QPushButton, QLabel, QDoubleSpinBox, QFileDialog)
 
-"""导入自定义模块"""
-from src.components.ui_sub_image import Ui_MainWindow                   # 看图子界面，导入界面UI
-from src.components.custom_qMbox_showinfo import show_message_box       # 导入消息框类
-from src.components.custom_qdialog_problems import ProblemsDialog       # 导入问题对话框类
-from src.common.settings_ColorAndExif import (load_exif_settings,       # 导入json配置模块
-    load_color_settings)                                                
-from src.common.font_manager import SingleFontManager                   # 看图子界面，导入字体管理器
-from src.utils.aitips import CustomLLM_Siliconflow                      # 看图子界面，AI提示看图复选框功能模块
-from src.utils.hisnot import WScreenshot                                # 看图子界面，导入自定义截图的类
-from src.utils.aeboxlink import check_process_running, get_api_data     # 导入与AEBOX通信的模块函数
-from src.utils.heic import extract_jpg_from_heic                        # 导入heic图片转换为jpg图片的模块
-from src.utils.p3_converter import ColorSpaceConverter                  # 导入色彩空间转换配置类
-from src.utils.decorator import CC_TimeDec                              # 导入自定义装饰器
-from src.utils.rectangleprogress import RectangleProgress               # 导入自定义进度条
 
 class ImageTransform:
     """图片旋转exif信息调整类"""
@@ -71,30 +48,28 @@ class ImageTransform:
         try:
             # 获取EXIF方向信息
             orientation = cls.get_orientation(icon_path)
-            
+
             # 创建QPixmap
             pixmap = QPixmap(icon_path)
-            
+
             # 应用方向变换
             transform = cls._ORIENTATION_TRANSFORMS.get(orientation, QTransform())
             if not transform.isIdentity():  # 只在需要变换时执行
                 pixmap = pixmap.transformed(transform, Qt.SmoothTransformation)
-            
+
             return pixmap
-            
+
         except Exception as e:
             print(f"处理图片失败 {icon_path}: {str(e)}")
             return QPixmap()
 
 
-
-
 class SubCompare(QWidget):
     closed = pyqtSignal()  # 添加关闭信号
-    
+
     def __init__(self, image_path=None):
         super().__init__()
-        
+
         # 初始化变量
         self.sync_zoom = True  # 是否同步缩放两张图片
         self.last_zoom_factor = 1.0  # 上次缩放因子
@@ -102,23 +77,23 @@ class SubCompare(QWidget):
 
         # 初始化变量
         self.init_variables()
-        
+
         # 获取鼠标所在屏幕，并根据当前屏幕计算界面大小与居中位置，调整大小并移动到该位置
-        screen = QtWidgets.QApplication.desktop().screenNumber(QtWidgets.QApplication.desktop().cursor().pos())
-        screen_geometry = QtWidgets.QApplication.desktop().screenGeometry(screen)
+        screen = QApplication.desktop().screenNumber(QApplication.desktop().cursor().pos())
+        screen_geometry = QApplication.desktop().screenGeometry(screen)
         width = int(screen_geometry.width() * 0.6)
         height = int(screen_geometry.height() * 0.8)
         self.resize(width, height)
         x = screen_geometry.x() + (screen_geometry.width() - self.width()) // 2
         y = screen_geometry.y() + (screen_geometry.height() - self.height()) // 2
         self.move(x, y)
-        
+
         # 初始化UI
         self.initUI()
-        
+
         # 存储选中的颜色
-        self.selected_color = None  
-        
+        self.selected_color = None
+
         # 初始化图片
         if image_path:
             self.original_pixmap = ImageTransform.auto_rotate_image(image_path)
@@ -132,10 +107,7 @@ class SubCompare(QWidget):
     def init_variables(self):
         """初始化相关类以及变量"""
 
-        # 初始化p3_converter.py中的ColorSpaceConverter实例
-        self.p3_converter = ColorSpaceConverter()
-
-        # 初始化SubMainWindow类中的一些列表属性
+        # 初始化一些列表属性
         self.exif_texts = []
         self.histograms = []
         self.original_rotation = []
@@ -154,41 +126,41 @@ class SubCompare(QWidget):
         label_layout = QHBoxLayout()
         image_layout = QHBoxLayout()
         control_layout = QHBoxLayout()
-        
+
         # 创建标签
         label_before = QLabel('修改前', self)
         label_after = QLabel('修改后', self)
-        
+
         # 设置标签的对齐方式为水平和垂直居中
         label_before.setAlignment(Qt.AlignCenter)
         label_after.setAlignment(Qt.AlignCenter)
-        
+
         # 将标签添加到标签布局
         label_layout.addWidget(label_before)
         label_layout.addWidget(label_after)
-        
+
         # 创建QGraphicsView和QGraphicsScene用于显示图片
         self.view_before = GraphicsView(self)  # 原始图片视图，支持缩放
         self.view_after = GraphicsView(self, pick_color_callback=self.pick_color)  # 修改后图片视图，支持取色和缩放
-        
+
         # 设置背景色为 #7F7F7F
         self.view_before.setStyleSheet("background-color: #7F7F7F;")
         self.view_after.setStyleSheet("background-color: #7F7F7F;")
-        
+
         self.scene_before = QGraphicsScene(self)
         self.scene_after = QGraphicsScene(self)
         # 设置场景到视图
         self.view_before.setScene(self.scene_before)
         self.view_after.setScene(self.scene_after)
-        
+
         # 连接缩放信号
         self.view_before.zoomChanged.connect(lambda factor: self.on_zoom_changed(factor, True))
         self.view_after.zoomChanged.connect(lambda factor: self.on_zoom_changed(factor, False))
-        
+
         # 将视图添加到图片布局
         image_layout.addWidget(self.view_before)
         image_layout.addWidget(self.view_after)
-        
+
         # 创建双精度旋转框和标签
         red_label = QLabel('红色:', self)
         self.red_spinbox = QDoubleSpinBox(self)
@@ -278,7 +250,7 @@ class SubCompare(QWidget):
         control_layout.addWidget(compare_button)
         control_layout.addWidget(reset_button)
         control_layout.addWidget(save_as_button)
-        
+
         # 连接旋转框的值改变信号到on_slider_change方法
         self.saturation_spinbox.valueChanged.connect(self.on_slider_change)
         self.exposure_spinbox.valueChanged.connect(self.on_slider_change)
@@ -288,12 +260,12 @@ class SubCompare(QWidget):
         self.blue_spinbox.valueChanged.connect(self.on_slider_change)
         self.sharpness_spinbox.valueChanged.connect(self.on_slider_change)
         self.hue_spinbox.valueChanged.connect(self.on_slider_change)
-        
+
         # 设置主布局
         main_layout.addLayout(label_layout)
         main_layout.addLayout(image_layout)
         main_layout.addLayout(control_layout)
-        
+
         # 连接按钮功能
         compare_button.pressed.connect(self.compare_images)
         compare_button.released.connect(self.restore_modified_image)
@@ -309,41 +281,39 @@ class SubCompare(QWidget):
         # 初始加载时自适应窗口大小
         self.reset_zoom()
 
-
     def reset_zoom(self):
         """重置两个视图的缩放比例，使其适应窗口大小"""
         if not self.scene_before.items() or not self.scene_after.items():
             return
-            
+
         # 计算适应窗口的缩放比例
         rect_before = self.scene_before.itemsBoundingRect()
         rect_after = self.scene_after.itemsBoundingRect()
-        
+
         # 计算两个视图的适应比例
         scale_before = min(
             self.view_before.width() / rect_before.width(),
             self.view_before.height() / rect_before.height()
         ) * 0.95  # 稍微缩小一点，避免边缘被裁剪
-        
+
         scale_after = min(
             self.view_after.width() / rect_after.width(),
             self.view_after.height() / rect_after.height()
         ) * 0.95  # 稍微缩小一点，避免边缘被裁剪
-        
+
         # 使用相同的缩放比例，确保两个视图同步
         scale_factor = min(scale_before, scale_after)
-        
+
         # 重置变换并应用新的缩放
         self.view_before.resetTransform()
         self.view_after.resetTransform()
         self.view_before.scale(scale_factor, scale_factor)
         self.view_after.scale(scale_factor, scale_factor)
-        
+
         # 更新缩放因子
         self.view_before.zoom_factor = scale_factor
         self.view_after.zoom_factor = scale_factor
         self.last_zoom_factor = scale_factor
-
 
     def on_zoom_changed(self, factor, is_before):
         """处理缩放变化事件"""
@@ -353,7 +323,6 @@ class SubCompare(QWidget):
                 self.view_after.setTransform(self.view_before.transform())
             else:
                 self.view_before.setTransform(self.view_after.transform())
-
 
     def toggle_sync_zoom(self, checked):
         """切换同步缩放模式"""
@@ -421,7 +390,6 @@ class SubCompare(QWidget):
         # 自适应右侧视图
         self.view_after.fitInView(self.scene_after.sceneRect(), Qt.KeepAspectRatio)
 
-
     def modify_image(self, pixmap):
         if pixmap.isNull():
             return QPixmap()
@@ -441,7 +409,6 @@ class SubCompare(QWidget):
         blue_increment = self.blue_spinbox.value()
         sharpness_increment = self.sharpness_spinbox.value()
         hue_increment = self.hue_spinbox.value()
-
 
         # 如果选择了颜色，获取其 HSV 值
         if self.selected_color:
@@ -609,10 +576,10 @@ class SubCompare(QWidget):
         # 弹出文件保存对话框
         options = QFileDialog.Options()
         file_path, _ = QFileDialog.getSaveFileName(
-            self, 
-            "另存为", 
-            "", 
-            "Images (*.jpg *.png *.bmp *.gif)", 
+            self,
+            "另存为",
+            "",
+            "Images (*.jpg *.png *.bmp *.gif)",
             options=options
         )
         if file_path:
@@ -637,16 +604,17 @@ class SubCompare(QWidget):
     def keyPressEvent(self, event):
         """处理键盘按键事件"""
         if event.key() == Qt.Key_Escape:
-            self.close()  
+            self.close()
             event.accept()
 
     def closeEvent(self, event):
         """重写关闭事件"""
         # 发射关闭信号（新增），统一在这里发送信号
         self.closed.emit()
-        
+
         # 接受关闭事件（重要！这会告诉Qt正常关闭窗口）
         event.accept()
+
 
 class GraphicsView(QGraphicsView):
     zoomChanged = pyqtSignal(float)  # 缩放变化信号，通知外部
@@ -660,6 +628,8 @@ class GraphicsView(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.zoom_factor = 1.0  # 初始缩放因子
         self.pick_mode = False
+        self.is_dragging = False
+        self.last_pos = QPoint()
 
     def wheelEvent(self, event):
         """重写鼠标滚轮事件以实现缩放功能"""
@@ -682,7 +652,6 @@ class GraphicsView(QGraphicsView):
             # 按住 Alt 键，只缩放当前视图
             self.scale(zoom_factor, zoom_factor)
             self.zoom_factor *= zoom_factor
-            #self.sync_zoom = 0
             self.zoomChanged.emit(self.zoom_factor)
             # 确保鼠标位置保持不变
             new_pos = self.mapToScene(event.pos())
@@ -708,28 +677,46 @@ class GraphicsView(QGraphicsView):
         else:
             self.setCursor(Qt.ArrowCursor)
 
-    def mousePressEvent(self, event: QMouseEvent):
-        if self.pick_mode and event.button() == Qt.LeftButton:
-            # 获取点击位置
-            scene_pos = self.mapToScene(event.pos())
-            x = int(scene_pos.x())
-            y = int(scene_pos.y())
-            # 转换为 OpenCV 坐标
-            img = self.parent().qpixmap_to_cv(self.parent().original_pixmap)
-            if img is None:
-                print(f"[sub_image_process_view]--[mousePressEvent]-->无法获取图片数据进行取色。")
-                return
-            height, width, _ = img.shape
-            if 0 <= x < width and 0 <= y < height:
-                b, g, r = img[y, x]
-                color = QColor(r, g, b)
-                if self.pick_color_callback:
-                    self.pick_color_callback(color)
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.is_dragging = True
+            self.last_pos = event.pos()
+            event.accept()
         else:
             super().mousePressEvent(event)
 
-			
+    def mouseMoveEvent(self, event):
+        if self.is_dragging:
+            delta = event.pos() - self.last_pos
+            modifiers = QApplication.keyboardModifiers()
+            if modifiers & Qt.AltModifier:
+                # 按下 Alt 键，只移动当前视图
+                self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
+                self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
+            else:
+                # 未按下 Alt 键，同时移动两个视图
+                parent = self.parent()
+                if hasattr(parent, 'view_before') and hasattr(parent, 'view_after'):
+                    other_view = parent.view_before if self is parent.view_after else parent.view_after
+                    self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
+                    self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
+                    other_view.horizontalScrollBar().setValue(other_view.horizontalScrollBar().value() - delta.x())
+                    other_view.verticalScrollBar().setValue(other_view.verticalScrollBar().value() - delta.y())
+            self.last_pos = event.pos()
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.is_dragging = False
+            event.accept()
+        else:
+            super().mouseReleaseEvent(event)
+
+
 if __name__ == '__main__':
+    import sys
     app = QApplication(sys.argv)
     image_path = sys.argv[1] if len(sys.argv) > 1 else None
     ex = SubCompare(image_path)

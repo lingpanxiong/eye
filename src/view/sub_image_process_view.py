@@ -701,7 +701,7 @@ class GraphicsView(QGraphicsView):
             x = int(scene_pos.x())
             y = int(scene_pos.y())
             # 转换为 OpenCV 坐标
-            img = self.parent.qpixmap_to_cv(self.original_pixmap)
+            img = self.parent().qpixmap_to_cv(self.parent().original_pixmap)
             if img is None:
                 print(f"[sub_image_process_view]--[mousePressEvent]-->无法获取图片数据进行取色。")
                 return
@@ -709,7 +709,6 @@ class GraphicsView(QGraphicsView):
             if 0 <= x < width and 0 <= y < height:
                 b, g, r = img[y, x]
                 color = QColor(r, g, b)
-                logging.debug(f"取色器点击位置: ({x}, {y})，颜色: RGB({r}, {g}, {b})")
                 if self.pick_color_callback:
                     self.pick_color_callback(color)
         else:

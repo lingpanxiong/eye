@@ -98,6 +98,7 @@ class SubCompare(QWidget):
         # 初始化变量
         self.sync_zoom = True  # 是否同步缩放两张图片
         self.last_zoom_factor = 1.0  # 上次缩放因子
+        self.compare_zoom_factor = None  # 记录对比时的缩放比例
 
         # 初始化变量
         self.init_variables()
@@ -348,16 +349,10 @@ class SubCompare(QWidget):
         """处理缩放变化事件"""
         # 如果启用了同步缩放且不是Alt键单独缩放模式
         if self.sync_zoom and not (QApplication.keyboardModifiers() & Qt.AltModifier):
-            # 更新另一个视图的缩放
             if is_before:
                 self.view_after.setTransform(self.view_before.transform())
-                self.view_after.zoom_factor = factor
             else:
                 self.view_before.setTransform(self.view_after.transform())
-                self.view_before.zoom_factor = factor
-        
-        # 保存当前缩放因子
-        self.last_zoom_factor = factor
 
 
     def toggle_sync_zoom(self, checked):
@@ -583,6 +578,9 @@ class SubCompare(QWidget):
 
     # 按钮功能实现示例
     def compare_images(self):
+        # 记录当前缩放比例
+        self.compare_zoom_factor = self.view_before.transform().m11()  # 假设水平和垂直缩放比例相同
+
         if self.original_pixmap.isNull():
             print(f"[sub_image_process_view]--[compare_images]-->没有加载图片，无法进行对比。")
             return
@@ -627,6 +625,12 @@ class SubCompare(QWidget):
                 print(f"[sub_image_process_view]--[save_as]-->修改后的图片为空，无法保存。")
 
     def restore_modified_image(self):
+        # 恢复缩放比例
+        if self.compare_zoom_factor is not None:
+            self.view_before.resetTransform()
+            self.view_after.resetTransform()
+            self.view_before.scale(self.compare_zoom_factor, self.compare_zoom_factor)
+            self.view_after.scale(self.compare_zoom_factor, self.compare_zoom_factor)
         # 恢复修改后的图片
         self.update_images()
 
@@ -646,6 +650,7 @@ class SubCompare(QWidget):
 
 class GraphicsView(QGraphicsView):
     zoomChanged = pyqtSignal(float)  # 缩放变化信号，通知外部
+
     def __init__(self, parent=None, pick_color_callback=None):
         super().__init__(parent)
         self.pick_color_callback = pick_color_callback
@@ -660,31 +665,40 @@ class GraphicsView(QGraphicsView):
         """重写鼠标滚轮事件以实现缩放功能"""
         # 获取 Alt 键状态
         alt_pressed = event.modifiers() & Qt.AltModifier
-        
+
         # 计算缩放因子
         zoom_in_factor = 1.25
         zoom_out_factor = 1 / zoom_in_factor
-        
+
         if event.angleDelta().y() > 0:
             zoom_factor = zoom_in_factor
         else:
             zoom_factor = zoom_out_factor
-        
+
         # 保存当前鼠标在场景中的位置
         old_pos = self.mapToScene(event.pos())
-        
-        # 进行缩放
-        self.scale(zoom_factor, zoom_factor)
-        
-        # 更新缩放因子并发送信号
-        self.zoom_factor *= zoom_factor
-        self.zoomChanged.emit(self.zoom_factor)
-        
-        # 如果按住 Alt 键，确保鼠标位置保持不变
+
         if alt_pressed:
+            # 按住 Alt 键，只缩放当前视图
+            self.scale(zoom_factor, zoom_factor)
+            self.zoom_factor *= zoom_factor
+            self.sync_zoom = 0
+            self.zoomChanged.emit(self.zoom_factor)
+            # 确保鼠标位置保持不变
             new_pos = self.mapToScene(event.pos())
             delta = new_pos - old_pos
             self.translate(delta.x(), delta.y())
+        else:
+            # 不按 Alt 键，正常缩放
+            self.scale(zoom_factor, zoom_factor)
+            self.zoom_factor *= zoom_factor
+            self.zoomChanged.emit(self.zoom_factor)
+            # 通知其他视图同步缩放
+            if hasattr(self.parent(), 'sync_zoom') and self.parent().sync_zoom:
+                other_view = self.parent().view_after if self == self.parent().view_before else self.parent().view_before
+                other_view.scale(zoom_factor, zoom_factor)
+                other_view.zoom_factor = self.zoom_factor
+                other_view.zoomChanged.emit(self.zoom_factor)
 
     def set_pick_mode(self, mode: bool):
         """设置是否处于取色模式"""

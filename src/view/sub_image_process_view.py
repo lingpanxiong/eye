@@ -18,6 +18,21 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QGraphicsView, QGraphicsScene, QVBoxLayout,
     QHBoxLayout, QPushButton, QLabel, QDoubleSpinBox, QFileDialog)
 
+"""导入自定义模块"""
+from src.components.ui_sub_image import Ui_MainWindow                   # 看图子界面，导入界面UI
+from src.components.custom_qMbox_showinfo import show_message_box       # 导入消息框类
+from src.components.custom_qdialog_problems import ProblemsDialog       # 导入问题对话框类
+from src.common.settings_ColorAndExif import (load_exif_settings,       # 导入json配置模块
+    load_color_settings)                                                
+from src.common.font_manager import SingleFontManager                   # 看图子界面，导入字体管理器
+from src.utils.aitips import CustomLLM_Siliconflow                      # 看图子界面，AI提示看图复选框功能模块
+from src.utils.hisnot import WScreenshot                                # 看图子界面，导入自定义截图的类
+from src.utils.aeboxlink import check_process_running, get_api_data     # 导入与AEBOX通信的模块函数
+from src.utils.heic import extract_jpg_from_heic                        # 导入heic图片转换为jpg图片的模块
+from src.utils.p3_converter import ColorSpaceConverter                  # 导入色彩空间转换配置类
+from src.utils.decorator import CC_TimeDec                              # 导入自定义装饰器
+from src.utils.rectangleprogress import RectangleProgress               # 导入自定义进度条
+
 class ImageTransform:
     """图片旋转exif信息调整类"""
     # 定义EXIF方向值对应的QTransform变换
@@ -74,50 +89,6 @@ class ImageTransform:
 
 
 
-
-class GraphicsView(QGraphicsView):
-    zoomChanged = pyqtSignal(float)  # 缩放变化信号，通知外部
-    
-    def __init__(self, parent=None, pick_color_callback=None):
-        super().__init__(parent)
-        self.pick_color_callback = pick_color_callback
-        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)  # 设置缩放锚点为鼠标位置
-        self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.zoom_factor = 1.0  # 初始缩放因子
-        
-    def wheelEvent(self, event):
-        """重写鼠标滚轮事件以实现缩放功能"""
-        # 获取 Alt 键状态
-        alt_pressed = event.modifiers() & Qt.AltModifier
-        
-        # 计算缩放因子
-        zoom_in_factor = 1.25
-        zoom_out_factor = 1 / zoom_in_factor
-        
-        if event.angleDelta().y() > 0:
-            zoom_factor = zoom_in_factor
-        else:
-            zoom_factor = zoom_out_factor
-        
-        # 保存当前鼠标在场景中的位置
-        old_pos = self.mapToScene(event.pos())
-        
-        # 进行缩放
-        self.scale(zoom_factor, zoom_factor)
-        
-        # 更新缩放因子并发送信号
-        self.zoom_factor *= zoom_factor
-        self.zoomChanged.emit(self.zoom_factor)
-        
-        # 如果按住 Alt 键，确保鼠标位置保持不变
-        if alt_pressed:
-            new_pos = self.mapToScene(event.pos())
-            delta = new_pos - old_pos
-            self.translate(delta.x(), delta.y())
-
-
 class SubCompare(QWidget):
     closed = pyqtSignal()  # 添加关闭信号
     
@@ -127,6 +98,9 @@ class SubCompare(QWidget):
         # 初始化变量
         self.sync_zoom = True  # 是否同步缩放两张图片
         self.last_zoom_factor = 1.0  # 上次缩放因子
+
+        # 初始化变量
+        self.init_variables()
         
         # 获取鼠标所在屏幕，并根据当前屏幕计算界面大小与居中位置，调整大小并移动到该位置
         screen = QtWidgets.QApplication.desktop().screenNumber(QtWidgets.QApplication.desktop().cursor().pos())
@@ -154,6 +128,24 @@ class SubCompare(QWidget):
         else:
             self.original_pixmap = QPixmap()  # 默认空白
 
+    def init_variables(self):
+        """初始化相关类以及变量"""
+
+        # 初始化p3_converter.py中的ColorSpaceConverter实例
+        self.p3_converter = ColorSpaceConverter()
+
+        # 初始化SubMainWindow类中的一些列表属性
+        self.exif_texts = []
+        self.histograms = []
+        self.original_rotation = []
+        self.graphics_views = []
+        self.original_pixmaps = []
+        self.gray_pixmaps = []
+        self.p3_pixmaps = []
+        self.cv_imgs = []
+        self.pil_imgs = []
+        self.base_scales = []
+        self._scales_min = []
 
     def initUI(self):
         # 创建布局
@@ -709,7 +701,7 @@ class GraphicsView(QGraphicsView):
             x = int(scene_pos.x())
             y = int(scene_pos.y())
             # 转换为 OpenCV 坐标
-            img = self.parent.qpixmap_to_cv(self.parent.original_pixmap)
+            img = self.parent.qpixmap_to_cv(self.original_pixmap)
             if img is None:
                 print(f"[sub_image_process_view]--[mousePressEvent]-->无法获取图片数据进行取色。")
                 return
@@ -717,6 +709,7 @@ class GraphicsView(QGraphicsView):
             if 0 <= x < width and 0 <= y < height:
                 b, g, r = img[y, x]
                 color = QColor(r, g, b)
+                logging.debug(f"取色器点击位置: ({x}, {y})，颜色: RGB({r}, {g}, {b})")
                 if self.pick_color_callback:
                     self.pick_color_callback(color)
         else:
